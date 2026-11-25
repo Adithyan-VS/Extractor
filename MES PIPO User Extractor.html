@@ -108,26 +108,18 @@
       margin-left: 10px;
     }
   
-  .author-credit {
-    margin-top: 10px;
+  .credit-zone {
+    min-height: 18px;
+    margin-top: 8px;
     text-align: right;
     font-size: 10px;
     color: transparent;
-    cursor: default;
+    user-select: none;
     transition: color 160ms ease;
   }
-  .author-credit:hover,
-  .author-credit:focus-within {
-    color: #6b7280;
-  }
-  .author-credit a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .author-credit:hover a,
-  .author-credit:focus-within a {
-    text-decoration: underline;
-  }
+  .credit-zone:hover, .credit-zone:focus-within { color: #6b7280; }
+  .credit-zone a { color: inherit; text-decoration: none; }
+  .credit-zone:hover a, .credit-zone:focus-within a { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -158,12 +150,46 @@
   <div id="tableContainer"></div>
   <textarea id="csvTextHidden" style="display:none;"></textarea>
 
-  
-  <div class="author-credit" aria-label="Author credit">
-    Developed by Adithyan V S &middot;
-    <a href="https://github.com/Adithyan-VS" target="_blank" rel="noopener noreferrer" title="GitHub profile">GitHub</a>
-  </div>
-<script>
+  <script>
+    // CREDIT_HELPER_BEGIN
+    const __creditCfg = { l: "RGV2ZWxvcGVkIGJ5IEFkaXRoeWFuIFYgUyB8IA==", u: "aHR0cHM6Ly9naXRodWIuY29tL0FkaXRoeWFuLVZT", t: "R2l0SHVi" };
+    function __decodeCredit(v) { try { return atob(v); } catch (_) { return ""; } }
+    function __ensureCredit() {
+      let zone = document.getElementById('creditZone');
+      if (!zone) {
+        zone = document.createElement('div');
+        zone.id = 'creditZone';
+        zone.className = 'credit-zone';
+        zone.setAttribute('aria-label', 'Page credit');
+        document.body.appendChild(zone);
+      }
+      const label = __decodeCredit(__creditCfg.l);
+      const href = __decodeCredit(__creditCfg.u);
+      const linkText = __decodeCredit(__creditCfg.t);
+      const a = zone.querySelector('a');
+      const textOk = zone.firstChild && zone.firstChild.nodeType === Node.TEXT_NODE && zone.firstChild.nodeValue === label;
+      const linkOk = a && a.getAttribute('href') === href && a.textContent === linkText;
+      if (!textOk || !linkOk) {
+        zone.replaceChildren();
+        zone.appendChild(document.createTextNode(label));
+        const linkEl = document.createElement('a');
+        linkEl.textContent = linkText;
+        linkEl.href = href;
+        linkEl.target = '_blank';
+        linkEl.rel = 'noopener noreferrer';
+        linkEl.title = linkText + ' profile';
+        zone.appendChild(linkEl);
+      }
+    }
+    function __startCredit() {
+      __ensureCredit();
+      const observer = new MutationObserver(__ensureCredit);
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', __startCredit);
+    else __startCredit();
+    // CREDIT_HELPER_END
+
     let allDetectedFields = [];
 
     function detectFields() {
