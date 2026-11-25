@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Details</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f9fafb;
+      color: #333;
+    }
+
+    h2 {
+      margin-bottom: 15px;
+      font-size: 22px;
+      color: #222;
+    }
+
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: monospace;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    button, a.button {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 4px 4px 0 0;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    button:hover, a.button:hover {
+      background: #1e4fc6;
+    }
+
+    #fieldControls {
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .field-checkboxes {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 6px;
+    }
+
+    label {
+      font-size: 14px;
+    }
+
+    #tableContainer {
+      margin-top: 20px;
+      max-height: 350px;
+      overflow: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid #eee;
+      padding: 8px 12px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f3f4f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    #copyMessage {
+      font-size: 14px;
+      font-weight: bold;
+      color: green;
+      margin-left: 10px;
+    }
+  
+  .author-credit {
+    margin-top: 10px;
+    text-align: right;
+    font-size: 10px;
+    color: transparent;
+    cursor: default;
+    transition: color 160ms ease;
+  }
+  .author-credit:hover,
+  .author-credit:focus-within {
+    color: #6b7280;
+  }
+  .author-credit a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .author-credit:hover a,
+  .author-credit:focus-within a {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+  <h2>User Data Parser</h2>
+
+  <div class="card">
+    <textarea id="inputText" placeholder="Paste raw user data here..."></textarea><br><br>
+    <button onclick="detectFields()">Detect Fields</button>
+  </div>
+
+  <div class="card" id="fieldControls" style="display:none;">
+    <div>
+      <label><input type="checkbox" id="selectAll" onchange="toggleAll(this)"> Select All</label>
+      <label style="margin-left:15px;"><input type="checkbox" id="clearAll" onchange="clearAll()"> Clear All</label>
+    </div>
+    <div id="fieldCount" style="font-size:14px; color:#444;"></div>
+  </div>
+
+  <div id="fieldCheckboxes" class="field-checkboxes"></div>
+
+  <div class="card">
+    <button onclick="generateOutput()">Generate CSV & Table</button>
+    <a id="downloadLink" class="button" style="display:none;">Export Output</a>
+    <button onclick="copyCSV()">Copy CSV</button>
+    <span id="copyMessage"></span>
+  </div>
+
+  <div id="tableContainer"></div>
+  <textarea id="csvTextHidden" style="display:none;"></textarea>
+
+  
+  <div class="author-credit" aria-label="Author credit">
+    Developed by Adithyan V S &middot;
+    <a href="https://github.com/Adithyan-VS" target="_blank" rel="noopener noreferrer" title="GitHub profile">GitHub</a>
+  </div>
+<script>
+    let allDetectedFields = [];
+
+    function detectFields() {
+      const rawText = document.getElementById('inputText').value;
+      const lines = rawText.split(/\r?\n/);
+      const seen = new Set();
+      const orderedFields = [];
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (line && line.includes('=')) {
+          const [keyRaw] = line.split('=', 1);
+          const key = keyRaw.trim().toLowerCase();
+          if (!key.startsWith('$') && !seen.has(key)) {
+            seen.add(key);
+            orderedFields.push(key);
+          }
+        }
+        if (line.toLowerCase().startsWith('$serviceuser$') && !seen.has('salutation')) {
+          seen.add('salutation');
+          orderedFields.push('salutation');
+        }
+      });
+
+      allDetectedFields = orderedFields;
+
+      const checkboxDiv = document.getElementById('fieldCheckboxes');
+      checkboxDiv.innerHTML = '';
+      orderedFields.forEach(field => {
+        checkboxDiv.innerHTML += `
+          <label><input type="checkbox" name="field" value="${field}" checked> ${field}</label>`;
+      });
+
+      document.getElementById('fieldControls').style.display = 'flex';
+      updateFieldCount();
+      document.getElementById('tableContainer').innerHTML = '';
+      document.getElementById('downloadLink').style.display = 'none';
+      document.getElementById('copyMessage').textContent = '';
+    }
+
+    function toggleAll(source) {
+      const checkboxes = document.querySelectorAll('input[name="field"]');
+      checkboxes.forEach(cb => cb.checked = source.checked);
+      updateFieldCount();
+    }
+
+    function clearAll() {
+      document.getElementById('selectAll').checked = false;
+      const checkboxes = document.querySelectorAll('input[name="field"]');
+      checkboxes.forEach(cb => cb.checked = false);
+      updateFieldCount();
+    }
+
+    function updateFieldCount() {
+      const total = allDetectedFields.length;
+      const selected = document.querySelectorAll('input[name="field"]:checked').length;
+      document.getElementById('fieldCount').textContent = `Selected ${selected} of ${total} fields`;
+    }
+
+    function generateOutput() {
+      const selectedFields = Array.from(document.querySelectorAll('input[name="field"]:checked')).map(el => el.value);
+      const rawText = document.getElementById('inputText').value;
+      const users = [];
+      let currentUser = Object.fromEntries(selectedFields.map(f => [f, '']));
+
+      const lines = rawText.split(/\r?\n/);
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (line === '') return;
+
+        if (line.toLowerCase() === '[user]') {
+          users.push(currentUser);
+          currentUser = Object.fromEntries(selectedFields.map(f => [f, '']));
+        } else if (line.includes('=')) {
+          const [keyRaw, value] = line.split('=', 2);
+          const key = keyRaw.trim().toLowerCase();
+          const val = value.trim();
+          if (selectedFields.includes(key)) {
+            currentUser[key] = val;
+          }
+        } else if (line.toLowerCase().startsWith('$serviceuser$') && selectedFields.includes('salutation')) {
+          currentUser['salutation'] = 'SERVICEUSER';
+        }
+      });
+
+      if (Object.values(currentUser).some(v => v)) {
+        users.push(currentUser);
+      }
+
+      // CSV
+      let csv = selectedFields.join(',') + '\n';
+      users.forEach(user => {
+        csv += selectedFields.map(f => `"${(user[f] || '').replace(/"/g, '""')}"`).join(',') + '\n';
+      });
+
+      document.getElementById('csvTextHidden').value = csv.trim();
+
+      // Table
+      showTable(users, selectedFields);
+
+      // Download link
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.getElementById('downloadLink');
+      link.href = url;
+      link.download = 'user_data.csv';
+      link.style.display = 'inline';
+      link.textContent = 'Download CSV';
+      document.getElementById('copyMessage').textContent = '';
+    }
+
+    function showTable(data, columns) {
+      const container = document.getElementById('tableContainer');
+      let html = '<table><thead><tr>';
+      columns.forEach(col => {
+        html += `<th style = 'text-align: left'>${col}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      data.forEach(row => {
+        html += '<tr>';
+        columns.forEach(col => {
+          html += `<td>${row[col] || ''}</td>`;
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    
+
+  
+function copyCSV() {
+  const selectedFields = Array.from(document.querySelectorAll('input[name="field"]:checked')).map(el => el.value);
+  const rawText = document.getElementById('inputText').value;
+  const users = [];
+  let currentUser = Object.fromEntries(selectedFields.map(f => [f, '']));
+
+  const lines = rawText.split(/\r?\n/);
+
+  lines.forEach(line => {
+    line = line.trim();
+    if (line === '') return;
+
+    if (line.toLowerCase() === '[user]') {
+      users.push(currentUser);
+      currentUser = Object.fromEntries(selectedFields.map(f => [f, '']));
+    } else if (line.includes('=')) {
+      const [keyRaw, value] = line.split('=', 2);
+      const key = keyRaw.trim().toLowerCase();
+      const val = value.trim();
+      if (selectedFields.includes(key)) {
+        currentUser[key] = val;
+      }
+    } else if (line.toLowerCase().startsWith('$serviceuser$') && selectedFields.includes('salutation')) {
+      currentUser['salutation'] = 'SERVICEUSER';
+    }
+  });
+
+  if (Object.values(currentUser).some(v => v)) {
+    users.push(currentUser);
+  }
+
+  // Build TSV instead of CSV
+  let tsv = selectedFields.join("\t") + "\n";
+  users.forEach(user => {
+    tsv += selectedFields.map(f => (user[f] || '')).join("\t") + "\n";
+  });
+
+  // Copy TSV to clipboard
+  const hidden = document.createElement("textarea");
+  hidden.value = tsv.trim();
+  document.body.appendChild(hidden);
+  hidden.select();
+  document.execCommand("copy");
+  document.body.removeChild(hidden);
+
+  document.getElementById('copyMessage').textContent = 'Copied!';
+  setTimeout(() => {
+    document.getElementById('copyMessage').textContent = '';
+  }, 2000);
+}
+
+    document.addEventListener('change', e => {
+      if (e.target.name === 'field') updateFieldCount();
+    });
+  </script>
+</body>
+</html>
